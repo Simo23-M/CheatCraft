@@ -1,112 +1,127 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
-  import { browser } from '$app/environment';
+  import { onMount } from 'svelte';
   import { jsonContent } from '$lib/stores/cheatsheet';
 
-  let editorContainer: HTMLDivElement;
-  let editor: any = null;
-  let monaco: any = null;
+  let textareaElement: HTMLTextAreaElement;
+  let localValue: string = $jsonContent;
 
   onMount(() => {
-    if (!browser) return;
-
-    let unsubscribe: () => void;
-
-    (async () => {
-      try {
-        // Dynamic import only in browser
-        monaco = await import('monaco-editor');
-        
-        // Configure Monaco for web workers (optional but recommended)
-        if (typeof window !== 'undefined') {
-          (window as any).MonacoEnvironment = {
-            getWorkerUrl: function (moduleId: string, label: string) {
-              if (label === 'json') {
-                return '/node_modules/monaco-editor/esm/vs/language/json/json.worker.js';
-              }
-              if (label === 'css' || label === 'scss' || label === 'less') {
-                return '/node_modules/monaco-editor/esm/vs/language/css/css.worker.js';
-              }
-              if (label === 'html' || label === 'handlebars' || label === 'razor') {
-                return '/node_modules/monaco-editor/esm/vs/language/html/html.worker.js';
-              }
-              if (label === 'typescript' || label === 'javascript') {
-                return '/node_modules/monaco-editor/esm/vs/language/typescript/ts.worker.js';
-              }
-              return '/node_modules/monaco-editor/esm/vs/editor/editor.worker.js';
-            }
-          };
-        }
-
-        editor = monaco.editor.create(editorContainer, {
-          value: $jsonContent,
-          language: 'json',
-          theme: 'vs-light',
-          minimap: { enabled: false },
-          scrollBeyondLastLine: false,
-          fontSize: 13,
-          wordWrap: 'on',
-          automaticLayout: true,
-          formatOnPaste: true,
-          formatOnType: true
-        });
-
-        // Listen for content changes
-        editor.onDidChangeModelContent(() => {
-          jsonContent.set(editor.getValue());
-        });
-
-        // Subscribe to store changes
-        unsubscribe = jsonContent.subscribe((content) => {
-          if (editor && editor.getValue() !== content) {
-            editor.setValue(content);
-          }
-        });
-      } catch (error) {
-        console.error('Failed to load Monaco Editor:', error);
+    // Auto-resize textarea
+    const autoResize = () => {
+      if (textareaElement) {
+        textareaElement.style.height = 'auto';
+        textareaElement.style.height = textareaElement.scrollHeight + 'px';
       }
-    })();
+    };
+
+    textareaElement.addEventListener('input', autoResize);
+    autoResize();
 
     return () => {
-      if (unsubscribe) unsubscribe();
+      textareaElement?.removeEventListener('input', autoResize);
     };
   });
 
-  onDestroy(() => {
-    if (editor) {
-      editor.dispose();
+  const handleInput = (event: Event) => {
+    const target = event.target as HTMLTextAreaElement;
+    localValue = target.value;
+    jsonContent.set(localValue);
+  };
+
+  const formatJSON = () => {
+    try {
+      const parsed = JSON.parse(localValue);
+      const formatted = JSON.stringify(parsed, null, 2);
+      localValue = formatted;
+      jsonContent.set(formatted);
+      if (textareaElement) {
+        textareaElement.value = formatted;
+        // Trigger resize
+        textareaElement.style.height = 'auto';
+        textareaElement.style.height = textareaElement.scrollHeight + 'px';
+      }
+    } catch (error) {
+      alert('Invalid JSON - cannot format');
     }
-  });
+  };
+
+  // Subscribe to store changes
+  $: if (textareaElement && $jsonContent !== localValue) {
+    localValue = $jsonContent;
+    textareaElement.value = localValue;
+    // Auto-resize after update
+    setTimeout(() => {
+      if (textareaElement) {
+        textareaElement.style.height = 'auto';
+        textareaElement.style.height = textareaElement.scrollHeight + 'px';
+      }
+    }, 0);
+  }
 </script>
 
-{#if browser}
-  <div bind:this={editorContainer} class="editor"></div>
-{:else}
-  <div class="editor-placeholder">
-    <div class="loading">Loading editor...</div>
+<div class="editor-container">
+  <div class="editor-header">
+    <button class="format-btn" on:click={formatJSON}>
+      ✨ Format JSON
+    </button>
   </div>
-{/if}
+  <textarea
+    bind:this={textareaElement}
+    class="json-textarea"
+    value={localValue}
+    on:input={handleInput}
+    placeholder="Enter your JSON here..."
+    spellcheck="false"
+  ></textarea>
+</div>
 
 <style>
-  .editor {
-    height: 300px;
+  .editor-container {
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     overflow: hidden;
+    background: white;
   }
 
-  .editor-placeholder {
-    height: 300px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .editor-header {
     background: #f8f9fa;
+    padding: 8px 12px;
+    border-bottom: 1px solid #e0e0e0;
+    display: flex;
+    justify-content: flex-end;
   }
 
-  .loading {
-    color: #666;
-    font-style: italic;
+  .format-btn {
+    background: var(--primary-color, #667eea);
+    color: white;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+
+  .format-btn:hover {
+    opacity: 0.8;
+  }
+
+  .json-textarea {
+    width: 100%;
+    min-height: 300px;
+    border: none;
+    padding: 15px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    background: white;
+    color: #333;
+    resize: none;
+    outline: none;
+    overflow-y: auto;
+  }
+
+  .json-textarea:focus {
+    background: #fafafa;
   }
 </style>
