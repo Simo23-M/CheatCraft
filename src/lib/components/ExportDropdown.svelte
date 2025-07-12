@@ -47,7 +47,11 @@
       }
     } catch (error) {
       console.error('Export error:', error);
-      alert(`Export failed: ${error.message}`);
+      if (error instanceof Error) {
+        alert(`Export failed: ${error.message}`);
+      } else {
+        alert('Export failed due to an unknown error');
+      }
     }
   };
 </script>
