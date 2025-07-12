@@ -6,11 +6,6 @@ export default defineConfig({
   optimizeDeps: {
     include: ['monaco-editor']
   },
-  build: {
-    rollupOptions: {
-      external: []
-    }
-  },
   ssr: {
     noExternal: ['monaco-editor']
   },
@@ -21,8 +16,5 @@ export default defineConfig({
     fs: {
       allow: ['..']
     }
-  },
-  worker: {
-    format: 'es'
   }
 });
